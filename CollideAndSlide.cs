@@ -8,7 +8,6 @@ public class CollideAndSlide : MonoBehaviour
     public int maxBounces = 5;
     public float maxSlope = 55f;
     public float stepHeight = 0.35f;
-    public float stepOffset = 0.1f;
     [Header("References")]
     public CapsuleCollider col;
 
@@ -36,8 +35,8 @@ public class CollideAndSlide : MonoBehaviour
         )
         {
             //define distance to travel before collision
-            float distance = Mathf.Max(0, hit.distance - skinWidth);
-            Vector3 snapToSurface = vel.normalized * distance;
+            float distance = hit.distance;
+            Vector3 snapToSurface = (vel.normalized * hit.distance) + (hit.normal * skinWidth);
             //define distance left to travel after colliosion
             Vector3 leftover = vel - snapToSurface;
             float angle = Vector3.Angle(Vector3.up, hit.normal);
@@ -108,48 +107,7 @@ public class CollideAndSlide : MonoBehaviour
         bool wasGrounded = isGrounded;
         isGrounded = false; // reset for movement passes
 
-        // step probe
-        if (wasGrounded && new Vector3(velocity.x, 0, velocity.z).sqrMagnitude > 0.00001f)
-        {
-            Vector3 moveDir = new Vector3(velocity.x, 0, velocity.z).normalized;
-            float castRad = col.radius - skinWidth;
-            float probeDist = 0.25f;
-
-            Vector3 P1(Vector3 pos) => pos + col.center + Vector3.up * (col.height * 0.5f - castRad);
-            Vector3 P2(Vector3 pos) => pos + col.center - Vector3.up * (col.height * 0.5f - castRad);
-            if (Physics.CapsuleCast(P1(transform.position), P2(transform.position), castRad, moveDir, out RaycastHit blockHit, probeDist))
-            {
-                if (Vector3.Angle(Vector3.up, blockHit.normal) > maxSlope)
-                {
-                    Vector3 liftedPos = transform.position;
-                    if (Physics.CapsuleCast(P1(transform.position), P2(transform.position), castRad, Vector3.up, out RaycastHit liftHit, stepHeight)) {
-                        liftedPos += Vector3.up * Mathf.Max(0, liftHit.distance - skinWidth);
-                    } else {
-                        liftedPos += Vector3.up * stepHeight;
-                    }
-
-                    Vector3 advancedPos = liftedPos;
-                    if (Physics.CapsuleCast(P1(liftedPos), P2(liftedPos), castRad, moveDir, out RaycastHit fwdHit, probeDist)) {
-                        advancedPos += moveDir * Mathf.Max(0, fwdHit.distance - skinWidth);
-                    } else {
-                        advancedPos += moveDir * probeDist;
-                    }
-                    if (Physics.CapsuleCast(P1(advancedPos), P2(advancedPos), castRad, Vector3.down, out RaycastHit dropHit, stepHeight * 2f))
-                    {
-                        if (Vector3.Angle(Vector3.up, dropHit.normal) <= maxSlope)
-                        {
-                            //Calculate step height
-                            float heightDiff = (advancedPos.y - dropHit.distance) - transform.position.y;
-
-                            if (heightDiff > 0.01f && heightDiff <= stepHeight + 0.05f)
-                            {
-                                transform.position += Vector3.up * (heightDiff + 0.02f);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        Depenetrate();
 
         // velocity pass
         Vector3 moveVel = ColSlide(velocity, transform.position, 0, false, velocity);
@@ -158,5 +116,29 @@ public class CollideAndSlide : MonoBehaviour
         // gravity pass
         Vector3 moveGrav = ColSlide(gravity, transform.position, 0, true, gravity);
         transform.position += moveGrav;
+    }
+    
+    //push player out when clipped inside a mesh
+    public void Depenetrate()
+    {
+        Vector3 p1 = transform.position + col.center + Vector3.up * (col.height * 0.5f - col.radius);
+        Vector3 p2 = transform.position + col.center - Vector3.up * (col.height * 0.5f - col.radius);
+
+        Collider[] overlaps = Physics.OverlapCapsule(p1, p2, col.radius, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+
+        foreach (Collider overlap in overlaps)
+        {
+            if (overlap == col) continue;
+
+            //Calculate seperation vector
+            if (Physics.ComputePenetration(
+                col, transform.position, transform.rotation,
+                overlap, overlap.transform.position, overlap.transform.rotation,
+                out Vector3 direction, out float distance))
+            {
+                // Push the player out
+                transform.position += direction * (distance + skinWidth);
+            }
+        }
     }
 }
