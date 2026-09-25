@@ -35,8 +35,10 @@ public class CollideAndSlide : MonoBehaviour
         )
         {
             //define distance to travel before collision
-            float distance = hit.distance;
-            Vector3 snapToSurface = (vel.normalized * hit.distance) + (hit.normal * skinWidth);
+            float hitDist = hit.distance;
+            float cosTheta = Vector3.Dot(-vel.normalized, hit.normal);
+            hitDist = Mathf.Max(0, hitDist - skinWidth / Mathf.Max(cosTheta, 0.0001f));
+            Vector3 snapToSurface = vel.normalized * hitDist;            
             //define distance left to travel after colliosion
             Vector3 leftover = vel - snapToSurface;
             float angle = Vector3.Angle(Vector3.up, hit.normal);
@@ -107,7 +109,7 @@ public class CollideAndSlide : MonoBehaviour
         bool wasGrounded = isGrounded;
         isGrounded = false; // reset for movement passes
 
-        Depenetrate();
+        //Depenetrate();
 
         // velocity pass
         Vector3 moveVel = ColSlide(velocity, transform.position, 0, false, velocity);
@@ -123,8 +125,7 @@ public class CollideAndSlide : MonoBehaviour
     {
         Vector3 p1 = transform.position + col.center + Vector3.up * (col.height * 0.5f - col.radius);
         Vector3 p2 = transform.position + col.center - Vector3.up * (col.height * 0.5f - col.radius);
-
-        Collider[] overlaps = Physics.OverlapCapsule(p1, p2, col.radius, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        Collider[] overlaps = Physics.OverlapCapsule(p1, p2, col.radius - skinWidth, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
 
         foreach (Collider overlap in overlaps)
         {
