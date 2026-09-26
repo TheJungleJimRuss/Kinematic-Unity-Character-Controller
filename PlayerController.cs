@@ -161,5 +161,11 @@ public class PlayerController : MonoBehaviour
         Vector3 moveVector = velNow * Time.deltaTime; // Convert velocity to distance
 
         motor.Move(moveVector, gravityVector);
+
+        // Cancel upward momentum immediately when bumping head into a ceiling
+        if (motor.isCeiling && velVert > 0)
+        {
+            velVert = 0f;
+        }
     }
 }
